@@ -35,9 +35,39 @@ jobs:
             --data '{"pin":"invalid","token":"invalid"}')"
           echo "Live invalid-registration POST status: $code"
           test "$code" = '400'
-          grep -qiF "access-control-allow-origin: $origin" "$headers"
+          grep -qiF 'access-control-allow-origin: *' "$headers"
           grep -q 'Invalid registration details' "$response"
           echo 'PASS: Live staging invitation endpoint accepts configured CORS origin and rejects invalid registration.'
+      - name: Verify custom domain CORS on invitation endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://mlypusfsxafsdnnzquek.supabase.co/functions/v1/accept-invite'
+          origin='https://voicetask.online'
+          headers="$(mktemp)"
+          response="$(mktemp)"
+          code="$(curl --silent --show-error --max-time 30 \
+            --dump-header "$headers" --output "$response" --write-out '%{http_code}' \
+            -X OPTIONS "$endpoint" -H "Origin: $origin" \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: apikey,authorization,content-type')"
+          test "$code" = '204'
+          grep -qiF "access-control-allow-origin: $origin" "$headers"
+          code="$(curl --silent --show-error --max-time 30 \
+            --dump-header "$headers" --output "$response" --write-out '%{http_code}' \
+            -X POST "$endpoint" -H "Origin: $origin" \
+            -H 'Content-Type: application/json' \
+            --data '{"pin":"invalid"}')"
+          test "$code" = '400'
+          grep -qiF 'access-control-allow-origin: *' "$headers"
+          grep -q 'Invalid registration details' "$response"
+          code="$(curl --silent --show-error --max-time 30 \
+            --output /dev/null --write-out '%{http_code}' \
+            -X OPTIONS "$endpoint" -H 'Origin: https://untrusted.example' \
+            -H 'Access-Control-Request-Method: POST')"
+          test "$code" = '403'
+          echo 'PASS: custom domain can access valid CORS endpoints; untrusted origins are rejected.'
+
       - name: Confirm Resend configuration is available without consuming an invitation
         shell: bash
         run: |

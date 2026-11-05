@@ -35,4 +35,39 @@ test('@live member: real Supabase login, allocation, audio upload, submission an
  await page.goto('/app/wallet');
  await expect(page.getByText('£0.00').first()).toBeVisible();
  await expect(page.getByRole('button',{name:'Request withdrawal'})).toBeDisabled();
+ // Real local Member Club journey: published course, module, YouTube lesson,
+ // protected progress row; a draft course must not leak into the member view.
+ const {data:course,error:courseError}=await service.from('club_courses').insert({
+   title:'Browser learning course',slug:'browser-learning-course',description:'A real-browser learning fixture',
+   cover_url:'https://example.com/cover.webp',published:true,featured:true,sort_order:1
+ }).select('id').single();
+ expect(courseError).toBeNull();
+ const {error:draftError}=await service.from('club_courses').insert({
+   title:'Staff draft course',slug:'staff-draft-course',description:'Members should not see this',
+   cover_url:'https://example.com/draft.webp',published:false,sort_order:2
+ });
+ expect(draftError).toBeNull();
+ const {data:module,error:moduleError}=await service.from('club_modules').insert({
+   course_id:course!.id,title:'Welcome module',position:1,published:true
+ }).select('id').single();
+ expect(moduleError).toBeNull();
+ const {data:lesson,error:lessonError}=await service.from('club_lessons').insert({
+   module_id:module!.id,title:'Welcome lesson',position:1,published:true,
+   youtube_url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+   description:'This is a disposable browser fixture.'
+ }).select('id').single();
+ expect(lessonError).toBeNull();
+ await page.goto('/app/member-club');
+ await expect(page.getByRole('heading',{name:'Browser learning course'})).toBeVisible({timeout:15000});
+ await expect(page.getByText('Staff draft course')).toHaveCount(0);
+ await page.getByRole('link',{name:/Browser learning course/}).click();
+ await expect(page.getByRole('heading',{name:'Welcome lesson'})).toBeVisible({timeout:15000});
+ await expect(page.locator('iframe[title="Welcome lesson"]')).toBeVisible();
+ await page.getByRole('button',{name:'Mark as completed'}).click();
+ await expect(page.getByRole('button',{name:'Lesson completed'})).toBeDisabled({timeout:15000});
+ const {data:progress,error:progressError}=await service.from('club_lesson_progress')
+   .select('lesson_id').eq('user_id',user!.id).eq('lesson_id',lesson!.id);
+ expect(progressError).toBeNull();
+ expect(progress).toHaveLength(1);
+
 });

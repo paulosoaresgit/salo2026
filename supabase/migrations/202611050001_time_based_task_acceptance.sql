@@ -55,7 +55,7 @@ begin
     update public.user_task_assignments set status='approved' where id=v_row.assignment_id;
     insert into public.notifications(user_id,title,body,type,deep_link)
       values(v_row.user_id,'Task accepted',
-             'Your submitted task was automatically accepted after five minutes. The reward is now in your wallet; speech quality was not evaluated.',
+             'Your submitted task was automatically accepted after five minutes. Your reward is now available in your wallet.',
              'success','/app/wallet');
     insert into public.audit_logs(action,entity_type,entity_id,after_filtered)
       values('task.auto_accepted','task_submissions',v_row.id,
